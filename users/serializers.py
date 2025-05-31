@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser
+from .models import User
 
 class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
@@ -49,7 +49,7 @@ class UpdateProfileSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CustomUser
+        model = User
         fields = ['phone_number', 'first_name', 'last_name']
         read_only_fields = ['phone_number']
         swagger_schema_fields = {

@@ -26,9 +26,13 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'drf_yasg',
-    'salons.apps.SalonsConfig',
-    'users.apps.UsersConfig',
+    'salons',
+    'users',
 ]
+
+# Custom user model
+AUTH_USER_MODEL = 'users.User'
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -72,9 +76,6 @@ DATABASES = {
     }
 }
 
-
-# Custom user model
-AUTH_USER_MODEL = 'users.CustomUser'
 
 # REST Framework settings
 REST_FRAMEWORK = {

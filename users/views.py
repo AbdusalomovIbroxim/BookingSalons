@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from datetime import timedelta
-from .models import CustomUser
+from .models import User
 from .serializers import (
     SendOTPSerializer,
     VerifyOTPSerializer,
@@ -63,7 +63,7 @@ class SendOTPView(APIView):
         # Generate OTP (for development, always use 11111)
         otp = '11111'
         
-        user, created = CustomUser.objects.get_or_create(
+        user, created = User.objects.get_or_create(
             phone_number=phone_number,
             defaults={'username': phone_number}
         )
@@ -127,8 +127,8 @@ class VerifyOTPView(APIView):
         otp = serializer.validated_data['otp']
 
         try:
-            user = CustomUser.objects.get(phone_number=phone_number)
-        except CustomUser.DoesNotExist:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
             return Response({'error': 'User not found'}, 
                           status=status.HTTP_404_NOT_FOUND)
 
