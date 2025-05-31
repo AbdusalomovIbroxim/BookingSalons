@@ -72,8 +72,12 @@ WSGI_APPLICATION = 'BookingSalons.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'bookingsalons',
+        'USER': 'bookingsalons_user',
+        'PASSWORD': 'HzLXLTnURag1E9WapNppnL8NK2b6s3Y7',
+        'HOST': 'dpg-d0tco4be5dus73foa2v0-a.oregon-postgres.render.com',
+        'PORT': '5432',
     }
 }
 
