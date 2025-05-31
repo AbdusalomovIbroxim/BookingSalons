@@ -3,10 +3,11 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Salon, Staff, Booking
-from .serializers import SalonSerializer, StaffSerializer, BookingSerializer
+from .models import Salon, Staff, Booking, SalonPhoto
+from .serializers import SalonSerializer, StaffSerializer, BookingSerializer, SalonPhotoSerializer
 from django.utils import timezone
 from datetime import datetime, timedelta
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 
@@ -16,75 +17,24 @@ class SalonViewSet(viewsets.ModelViewSet):
     """
     queryset = Salon.objects.all()
     serializer_class = SalonSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
     @action(detail=True, methods=['get'])
-    def available_times(self, request, pk=None):
-        """
-        Получить доступное время для бронирования в салоне.
-        """
+    def staff(self, request, pk=None):
         salon = self.get_object()
-        date = request.query_params.get('date')
-        staff_id = request.query_params.get('staff_id')
-        
-        if not date:
-            return Response({'error': 'Date parameter is required'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+        staff = Staff.objects.filter(salon=salon)
+        serializer = StaffSerializer(staff, many=True)
+        return Response(serializer.data)
 
-        try:
-            date = datetime.strptime(date, '%Y-%m-%d').date()
-        except ValueError:
-            return Response({'error': 'Invalid date format'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        # Get staff member if specified
-        staff = None
-        if staff_id:
-            staff = get_object_or_404(Staff, id=staff_id, salon=salon)
-        else:
-            staff = salon.staff.first()
-
-        if not staff:
-            return Response({'error': 'No staff available'}, 
-                          status=status.HTTP_404_NOT_FOUND)
-
-        # Get working hours for the day
-        working_hours = salon.get_working_hours()
-        day_name = date.strftime('%a').lower()
-        if day_name not in working_hours:
-            return Response({'error': 'Salon is closed on this day'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        # Get staff shifts
-        staff_shifts = staff.get_working_shifts()
-        if day_name not in staff_shifts:
-            return Response({'error': 'Staff is not working on this day'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        # Get existing bookings
-        existing_bookings = Booking.objects.filter(
-            salon=salon,
-            staff=staff,
-            booking_date=date,
-            status__in=['pending', 'confirmed']
-        ).values_list('booking_time', flat=True)
-
-        # Generate available time slots
-        start_time = datetime.strptime(staff_shifts[day_name]['start_time'], '%H:%M')
-        end_time = datetime.strptime(staff_shifts[day_name]['end_time'], '%H:%M')
-        current_time = start_time
-        available_times = []
-
-        while current_time < end_time:
-            time_str = current_time.strftime('%H:%M')
-            if time_str not in existing_bookings:
-                available_times.append(time_str)
-            current_time += timedelta(minutes=30)  # 30-minute slots
-
-        return Response({'available_times': available_times})
+    @action(detail=True, methods=['get'])
+    def bookings(self, request, pk=None):
+        salon = self.get_object()
+        bookings = Booking.objects.filter(salon=salon)
+        serializer = BookingSerializer(bookings, many=True)
+        return Response(serializer.data)
 
 class StaffViewSet(viewsets.ModelViewSet):
     """
@@ -92,13 +42,10 @@ class StaffViewSet(viewsets.ModelViewSet):
     """
     queryset = Staff.objects.all()
     serializer_class = StaffSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        salon_id = self.request.query_params.get('salon_id')
-        if salon_id:
-            return Staff.objects.filter(salon_id=salon_id)
-        return Staff.objects.all()
+        return Staff.objects.filter(salon__owner=self.request.user)
 
 class BookingViewSet(viewsets.ModelViewSet):
     """
@@ -106,16 +53,28 @@ class BookingViewSet(viewsets.ModelViewSet):
     """
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Booking.objects.filter(client=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(client=self.request.user)
 
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Booking.objects.none()
-            
-        user = self.request.user
-        if user.is_staff:
-            return Booking.objects.all()
-        return Booking.objects.filter(client=user)
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        booking = self.get_object()
+        if booking.status == 'pending':
+            booking.status = 'confirmed'
+            booking.save()
+            return Response({'status': 'confirmed'})
+        return Response({'error': 'Booking cannot be confirmed'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        booking = self.get_object()
+        if booking.status in ['pending', 'confirmed']:
+            booking.status = 'cancelled'
+            booking.save()
+            return Response({'status': 'cancelled'})
+        return Response({'error': 'Booking cannot be cancelled'}, status=status.HTTP_400_BAD_REQUEST)
