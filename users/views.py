@@ -15,6 +15,11 @@ from .serializers import (
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 import random
+from rest_framework_simplejwt.tokens import RefreshToken
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -96,7 +101,16 @@ class VerifyOTPView(APIView):
                 description="OTP успешно проверен",
                 examples={
                     "application/json": {
-                        "message": "OTP verified successfully"
+                        "message": "OTP verified successfully",
+                        "tokens": {
+                            "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                        },
+                        "user": {
+                            "phone_number": "+79001234567",
+                            "first_name": "",
+                            "last_name": ""
+                        }
                     }
                 }
             ),
@@ -119,34 +133,62 @@ class VerifyOTPView(APIView):
         }
     )
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        phone_number = serializer.validated_data['phone_number']
-        otp = serializer.validated_data['otp']
-
         try:
-            user = User.objects.get(phone_number=phone_number)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, 
-                          status=status.HTTP_404_NOT_FOUND)
+            logger.info(f"Received verify OTP request: {request.data}")
+            
+            serializer = self.serializer_class(data=request.data)
+            if not serializer.is_valid():
+                logger.error(f"Validation error: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if OTP is expired (5 minutes)
-        if user.otp_created_at and timezone.now() - user.otp_created_at > timedelta(minutes=5):
-            return Response({'error': 'OTP has expired'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+            phone_number = serializer.validated_data['phone_number']
+            otp = serializer.validated_data['otp']
+            
+            logger.info(f"Looking for user with phone number: {phone_number}")
+            try:
+                user = User.objects.get(phone_number=phone_number)
+            except User.DoesNotExist:
+                logger.error(f"User not found: {phone_number}")
+                return Response({'error': 'User not found'}, 
+                              status=status.HTTP_404_NOT_FOUND)
 
-        if user.otp_code != otp:
-            return Response({'error': 'Invalid OTP'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+            # Check if OTP is expired (5 minutes)
+            if user.otp_created_at and timezone.now() - user.otp_created_at > timedelta(minutes=5):
+                logger.error(f"OTP expired for user: {phone_number}")
+                return Response({'error': 'OTP has expired'}, 
+                              status=status.HTTP_400_BAD_REQUEST)
 
-        # Clear OTP after successful verification
-        user.otp_code = None
-        user.otp_created_at = None
-        user.save()
+            if user.otp_code != otp:
+                logger.error(f"Invalid OTP for user: {phone_number}")
+                return Response({'error': 'Invalid OTP'}, 
+                              status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({'message': 'OTP verified successfully'})
+            # Clear OTP after successful verification
+            user.otp_code = None
+            user.otp_created_at = None
+            user.save()
+
+            # Generate JWT tokens
+            logger.info(f"Generating tokens for user: {phone_number}")
+            refresh = RefreshToken.for_user(user)
+            
+            response_data = {
+                'message': 'OTP verified successfully',
+                'tokens': {
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh)
+                },
+                'user': UserProfileSerializer(user).data
+            }
+            logger.info(f"Sending successful response for user: {phone_number}")
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.exception(f"Unexpected error in verify OTP: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UpdateProfileView(APIView):
     """

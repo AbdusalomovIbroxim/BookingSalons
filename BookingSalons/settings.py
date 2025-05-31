@@ -30,8 +30,9 @@ INSTALLED_APPS = [
     'users',
 ]
 
-# Custom user model
+
 AUTH_USER_MODEL = 'users.User'
+ROOT_URLCONF = 'BookingSalons.urls'
 
 
 MIDDLEWARE = [
@@ -46,7 +47,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'BookingSalons.urls'
 
 TEMPLATES = [
     {
@@ -71,8 +71,8 @@ WSGI_APPLICATION = 'BookingSalons.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
-        'NAME': os.getenv('DB_NAME', BASE_DIR / 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -134,6 +134,45 @@ SWAGGER_SETTINGS = {
     # 'PERSIST_AUTH': True,
     # 'REFETCH_SCHEMA_WITH_AUTH': True,
     # 'REFETCH_SCHEMA_ON_LOGOUT': True,
+}
+
+# Logging settings
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'django.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'users': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
 }
 
 # Password validation
