@@ -1,8 +1,20 @@
 from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
-from .models import Salon, Staff, Booking
+from .models import Salon, Staff, Booking, SalonPhoto
 from django_json_widget.widgets import JSONEditorWidget
+
+class SalonPhotoInline(admin.TabularInline):
+    model = SalonPhoto
+    extra = 1
+    fields = ('image', 'order', 'is_main', 'preview')
+    readonly_fields = ('preview',)
+
+    def preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" style="max-height: 50px;"/>', obj.image.url)
+        return "Нет изображения"
+    preview.short_description = 'Предпросмотр'
 
 class SalonAdminForm(forms.ModelForm):
     class Meta:
@@ -44,14 +56,14 @@ class SalonAdminForm(forms.ModelForm):
 @admin.register(Salon)
 class SalonAdmin(admin.ModelAdmin):
     form = SalonAdminForm
+    inlines = [SalonPhotoInline]
     list_display = ('title', 'owner', 'created_at', 'display_photos_count', 'display_working_hours')
     search_fields = ('title', 'description', 'owner__phone_number')
     list_filter = ('created_at',)
     ordering = ('title',)
     
     def display_photos_count(self, obj):
-        photos = obj.photos if isinstance(obj.photos, list) else []
-        return f"{len(photos)} фото"
+        return f"{obj.photos.count()} фото"
     display_photos_count.short_description = 'Количество фото'
     
     def display_working_hours(self, obj):
@@ -84,6 +96,20 @@ class SalonAdmin(admin.ModelAdmin):
             hours.get('sun', {}).get('end_time', '-')
         )
     display_working_hours.short_description = 'Время работы'
+
+@admin.register(SalonPhoto)
+class SalonPhotoAdmin(admin.ModelAdmin):
+    list_display = ('salon', 'preview', 'order', 'is_main', 'created_at')
+    list_filter = ('salon', 'is_main', 'created_at')
+    search_fields = ('salon__title',)
+    ordering = ('salon', 'order')
+    readonly_fields = ('preview',)
+
+    def preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" style="max-height: 50px;"/>', obj.image.url)
+        return "Нет изображения"
+    preview.short_description = 'Предпросмотр'
 
 @admin.register(Staff)
 class StaffAdmin(admin.ModelAdmin):

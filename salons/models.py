@@ -8,7 +8,6 @@ User = get_user_model()
 class Salon(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
-    photos = models.JSONField(default=list)  # Array of photo URLs
     location_lat = models.DecimalField(max_digits=9, decimal_places=6)
     location_lon = models.DecimalField(max_digits=9, decimal_places=6)
     yandex_link = models.URLField()
@@ -22,6 +21,26 @@ class Salon(models.Model):
 
     def get_working_hours(self):
         return json.loads(self.working_hours)
+
+class SalonPhoto(models.Model):
+    salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='salon_photos/')
+    order = models.PositiveIntegerField(default=0)
+    is_main = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        verbose_name = 'Фото салона'
+        verbose_name_plural = 'Фотографии салона'
+
+    def __str__(self):
+        return f"Фото {self.order} для {self.salon.title}"
+
+    def save(self, *args, **kwargs):
+        if self.is_main:
+            SalonPhoto.objects.filter(salon=self.salon, is_main=True).exclude(pk=self.pk).update(is_main=False)
+        super().save(*args, **kwargs)
 
 class Staff(models.Model):
     salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='staff')
