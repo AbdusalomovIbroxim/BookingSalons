@@ -4,6 +4,33 @@ from django.utils.html import format_html
 from .models import Salon, Staff, Booking, SalonPhoto
 from django_json_widget.widgets import JSONEditorWidget
 
+class WorkingHoursWidget(forms.Widget):
+    template_name = 'admin/working_hours_widget.html'
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        if value:
+            hours = value
+        else:
+            hours = {
+                'mon': {'start_time': '08:00', 'end_time': '20:00'},
+                'tue': {'start_time': '08:00', 'end_time': '20:00'},
+                'wed': {'start_time': '08:00', 'end_time': '20:00'},
+                'thu': {'start_time': '08:00', 'end_time': '20:00'},
+                'fri': {'start_time': '08:00', 'end_time': '20:00'},
+                'sat': {'start_time': '08:00', 'end_time': '20:00'},
+                'sun': {'start_time': '08:00', 'end_time': '20:00'}
+            }
+        context['hours'] = hours
+        return context
+
+class SalonAdminForm(forms.ModelForm):
+    working_hours = forms.JSONField(widget=WorkingHoursWidget())
+
+    class Meta:
+        model = Salon
+        fields = '__all__'
+
 class SalonPhotoInline(admin.TabularInline):
     model = SalonPhoto
     extra = 1
@@ -15,43 +42,6 @@ class SalonPhotoInline(admin.TabularInline):
             return format_html('<img src="{}" style="max-height: 50px;"/>', obj.image.url)
         return "Нет изображения"
     preview.short_description = 'Предпросмотр'
-
-class SalonAdminForm(forms.ModelForm):
-    class Meta:
-        model = Salon
-        fields = '__all__'
-        widgets = {
-            'working_hours': JSONEditorWidget(
-                options={
-                    'modes': ['tree', 'view'],
-                    'mode': 'tree',
-                    'schema': {
-                        'type': 'object',
-                        'properties': {
-                            'mon': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'tue': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'wed': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'thu': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'fri': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'sat': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}},
-                            'sun': {'type': 'object', 'properties': {'start_time': {'type': 'string'}, 'end_time': {'type': 'string'}}}
-                        }
-                    }
-                }
-            ),
-            'photos': JSONEditorWidget(
-                options={
-                    'modes': ['tree', 'view'],
-                    'mode': 'tree',
-                    'schema': {
-                        'type': 'array',
-                        'items': {'type': 'string'},
-                        'minItems': 1,
-                        'maxItems': 14
-                    }
-                }
-            )
-        }
 
 @admin.register(Salon)
 class SalonAdmin(admin.ModelAdmin):
@@ -70,31 +60,21 @@ class SalonAdmin(admin.ModelAdmin):
         if not obj.working_hours:
             return "Не указано"
         hours = obj.working_hours
-        return format_html(
-            '<div style="white-space: pre-line">'
-            'Пн: {} - {}\n'
-            'Вт: {} - {}\n'
-            'Ср: {} - {}\n'
-            'Чт: {} - {}\n'
-            'Пт: {} - {}\n'
-            'Сб: {} - {}\n'
-            'Вс: {} - {}'
-            '</div>',
-            hours.get('mon', {}).get('start_time', '-'),
-            hours.get('mon', {}).get('end_time', '-'),
-            hours.get('tue', {}).get('start_time', '-'),
-            hours.get('tue', {}).get('end_time', '-'),
-            hours.get('wed', {}).get('start_time', '-'),
-            hours.get('wed', {}).get('end_time', '-'),
-            hours.get('thu', {}).get('start_time', '-'),
-            hours.get('thu', {}).get('end_time', '-'),
-            hours.get('fri', {}).get('start_time', '-'),
-            hours.get('fri', {}).get('end_time', '-'),
-            hours.get('sat', {}).get('start_time', '-'),
-            hours.get('sat', {}).get('end_time', '-'),
-            hours.get('sun', {}).get('start_time', '-'),
-            hours.get('sun', {}).get('end_time', '-')
-        )
+        days = {
+            'mon': 'Пн',
+            'tue': 'Вт',
+            'wed': 'Ср',
+            'thu': 'Чт',
+            'fri': 'Пт',
+            'sat': 'Сб',
+            'sun': 'Вс'
+        }
+        result = []
+        for day, label in days.items():
+            start = hours.get(day, {}).get('start_time', '-')
+            end = hours.get(day, {}).get('end_time', '-')
+            result.append(f"{label}: {start}-{end}")
+        return format_html('<div style="white-space: pre-line">{}</div>', '\n'.join(result))
     display_working_hours.short_description = 'Время работы'
 
 @admin.register(SalonPhoto)
