@@ -7,7 +7,7 @@ from .models import Salon, Staff, Booking, SalonPhoto
 from .serializers import SalonSerializer, StaffSerializer, BookingSerializer, SalonPhotoSerializer
 from django.utils import timezone
 from datetime import datetime, timedelta
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 
 # Create your views here.
 
@@ -17,7 +17,7 @@ class SalonViewSet(viewsets.ModelViewSet):
     """
     queryset = Salon.objects.all()
     serializer_class = SalonSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
